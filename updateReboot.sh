@@ -10,6 +10,12 @@ runAsRoot() {
   fi
 }
 
-runAsRoot apt update
+updateReboot() {
+  runAsRoot apt update 
+  runAsRoot apt -y full-upgrade
+  [ -f /var/run/reboot-required ] && runAsRoot reboot -f
+}
+
+updateReboot
 
 exit 0 
