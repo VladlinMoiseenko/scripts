@@ -1,3 +1,8 @@
+#!/usr/bin/env bash
+
+: ${USE_SUDO:="true"}
+
+HAS_KUBECTL="$(type "kubectl" &> /dev/null && echo true || echo false)"
 
 runAsRoot() {
   if [ $EUID -ne 0 -a "$USE_SUDO" = "true" ]; then
@@ -76,5 +81,22 @@ runAsRoot kubeadm config images pull
 runAsRoot kubeadm config images pull --cri-socket unix:///run/containerd/containerd.sock
 
 runAsRoot sysctl -p
+
+echo 'Bootstrap without shared endpoint'
+runAsRoot kubeadm init \
+--pod-network-cidr=172.24.0.0/16 \
+--cri-socket unix:///run/containerd/containerd.sock
+
+mkdir -p $HOME/.kube
+runAsRoot cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+runAsRoot chown $(id -u):$(id -g) $HOME/.kube/config
+
+echo 'Install Calico CNI'
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.25.1/manifests/tigera-operator.yaml
+curl https://raw.githubusercontent.com/projectcalico/calico/v3.25.1/manifests/custom-resources.yaml -O
+
+kubectl create -f custom-resources.yaml
+kubectl taint nodes --all  node-role.kubernetes.io/control-plane-
+kubectl apply -f https://docs.projectcalico.org/v3.14/manifests/calico.yaml
 
 exit 0
